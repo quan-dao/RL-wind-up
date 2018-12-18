@@ -1,9 +1,10 @@
+import numpy as np
 
 
 class gridWorld(object):
-	"""docstring for girdWorld"""
+	"""docstring for gridWorld"""
 	def __init__(self):
-		super(girdWorld, self).__init__()
+		super(gridWorld, self).__init__()
 		self.start = 0
 		self.goal = 0
 		self.row = 7
@@ -13,6 +14,8 @@ class gridWorld(object):
 		# Declare windy column
 		self.wind_1 = [3, 4, 5, 8]
 		self.wind_2 = [6, 7]
+		# action list
+		self.actions_list = ['N', 'E', 'S', 'W']
 
 	def cell(self, pos):
 		# pos = (y, x)
@@ -40,7 +43,7 @@ class gridWorld(object):
 		elif action == 'S':
 			del_y = 1
 		else:
-			raise("Invalid action. Action must be in (N, E, S, W)")
+			raise("Invalid action. Action must be in ", self.actions_list)
 		# move to new position
 		new_x = max(0, min(x + del_x, self.x_max))
 		new_y = max(0, min(y + del_y, self.y_max))
@@ -56,4 +59,58 @@ class gridWorld(object):
 
 	def checkTerminal(self, state):
 		return state == self.goal
+
+
+def gridWorldSarsa(world, _start, _goal):
+	world.setTerminal(_start, _goal)
+	# initialize Q(s, a)
+	q_table = {}
+	for state in range(world.row * world.col):
+		q_table[state] = {}
+		for act in world.actions_list:
+			q_table[state][act] = 0
+	
+	# function for greedy action
+	def epsGreedy(episode, q_dict):
 		
+		def greedyAct(_q_dict):
+			greedy_act = ''
+			max_q = -1
+			for act in world.actions_list:
+				if _q_dict[act] > max_q:
+					greedy_act = act
+					max_q = _q_dict[act]
+			return greedy_act
+
+		eps = 1. / episode
+		m = len(world.actions_list)
+		greedy_act = greedyAct(q_dict)
+		p = []
+		for act in world.actions_list:
+			if act == greedy_act:
+				p.append(eps / m + 1 - eps)
+			else:
+				p.append(eps / m)
+		choice = np.random.choice(world.actions_list, size=1, p=p)
+		return choice[0], greedy_act
+
+
+	# ep = 0
+	# ep_max = 200
+	# while ep < ep_max:
+	# 	state = world.cell(_start)
+		# choose A
+
+
+	print(q_table[0])
+	print("===================")
+	print(q_table[10])
+	choice, greedy_act = epsGreedy(1, q_table[10])
+	print("choice: ", choice, "\tgreedy act: ", greedy_act)
+
+
+if __name__ == '__main__':
+	_start = (3, 0)
+	_goal = (3, 9)
+	world = gridWorld()
+	gridWorldSarsa(world, _start, _goal)
