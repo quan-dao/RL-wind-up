@@ -60,8 +60,14 @@ class gridWorld(object):
 	def checkTerminal(self, state):
 		return state == self.goal
 
+	def rewardFunc(self, state_prime):
+		if state_prime == self.goal:
+			return 0
+		else:
+			return -1
 
-def gridWorldSarsa(world, _start, _goal):
+
+def gridWorldSarsa(world, _start, _goal, alpha=0.1, gamma=1):
 	world.setTerminal(_start, _goal)
 	# initialize Q(s, a)
 	q_table = {}
@@ -75,7 +81,7 @@ def gridWorldSarsa(world, _start, _goal):
 		
 		def greedyAct(_q_dict):
 			greedy_act = ''
-			max_q = -1
+			max_q = -1e10
 			for act in world.actions_list:
 				if _q_dict[act] > max_q:
 					greedy_act = act
@@ -88,25 +94,44 @@ def gridWorldSarsa(world, _start, _goal):
 		p = []
 		for act in world.actions_list:
 			if act == greedy_act:
-				p.append(eps / m + 1 - eps)
+				p.append((eps * 1. / m) + 1 - eps)
 			else:
-				p.append(eps / m)
+				p.append(eps * 1. / m)
 		choice = np.random.choice(world.actions_list, size=1, p=p)
-		return choice[0], greedy_act
+		return choice[0]
 
 
-	# ep = 0
-	# ep_max = 200
-	# while ep < ep_max:
-	# 	state = world.cell(_start)
-		# choose A
+	ep = 1
+	ep_max = 2
+	step = 0
+	while ep < ep_max:
+		print("Episode ", ep)
+		# initialize state
+		state = world.cell(_start)
+		# choose action from state
+		act = epsGreedy(ep, q_table[state])
+		while not world.checkTerminal(state):
+			state_prime = world.nextState(state, act)
+			reward = world.rewardFunc(state_prime)
+			act_prime = epsGreedy(ep, q_table[state_prime])
+			q_table[state][act] += alpha * (reward + gamma * q_table[state_prime][act_prime] - q_table[state][act])
+			state = state_prime
+			act = act_prime
+			# increase step counter
+			step += 1
 
+			# check out 2 state
+			print("Step ", step)
+			print(q_table[0])
+			print("-----------------------------")
+			print(q_table[10])
+		# increase episode counter
+		ep += 1
+		print("======================================")
 
-	print(q_table[0])
-	print("===================")
-	print(q_table[10])
-	choice, greedy_act = epsGreedy(1, q_table[10])
-	print("choice: ", choice, "\tgreedy act: ", greedy_act)
+	
+	# choice, greedy_act = epsGreedy(1, q_table[10])
+	# print("choice: ", choice, "\tgreedy act: ", greedy_act)
 
 
 if __name__ == '__main__':
