@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 class gridWorld(object):
@@ -67,6 +68,17 @@ class gridWorld(object):
 			return -1
 
 
+def trajectoryDisp(world, traj):
+	# initialzie world
+	w_map = np.zeros((world.row, world.col))
+	for i, state in enumerate(traj):
+		# decode state
+		x = int(state % world.col)
+		y = int((state - x) / world.col)
+		w_map[y, x] = i + 1
+	print(w_map)
+
+
 def gridWorldSarsa(world, _start, _goal, alpha=0.1, gamma=1):
 	world.setTerminal(_start, _goal)
 	# initialize Q(s, a)
@@ -102,12 +114,14 @@ def gridWorldSarsa(world, _start, _goal, alpha=0.1, gamma=1):
 
 
 	ep = 1
-	ep_max = 2
+	ep_max = 200
+	step_ep_list = []
 	step = 0
 	while ep < ep_max:
 		print("Episode ", ep)
 		# initialize state
 		state = world.cell(_start)
+		trajectory = [state]
 		# choose action from state
 		act = epsGreedy(ep, q_table[state])
 		while not world.checkTerminal(state):
@@ -120,22 +134,23 @@ def gridWorldSarsa(world, _start, _goal, alpha=0.1, gamma=1):
 			# increase step counter
 			step += 1
 
-			# check out 2 state
-			print("Step ", step)
-			print(q_table[0])
-			print("-----------------------------")
-			print(q_table[10])
+			# store the index of the episode of this time-step
+			step_ep_list.append(ep)
+			# update trajectory
+			trajectory.append(state)
+
+		if ep == (ep_max - 1):
+			trajectoryDisp(world, trajectory)
+		print("======================================")
 		# increase episode counter
 		ep += 1
-		print("======================================")
 
-	
-	# choice, greedy_act = epsGreedy(1, q_table[10])
-	# print("choice: ", choice, "\tgreedy act: ", greedy_act)
+	plt.plot(step_ep_list)
+	plt.show()
 
 
 if __name__ == '__main__':
 	_start = (3, 0)
-	_goal = (3, 9)
+	_goal = (3, 7)
 	world = gridWorld()
-	gridWorldSarsa(world, _start, _goal)
+	gridWorldSarsa(world, _start, _goal, alpha=0.5)
