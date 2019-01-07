@@ -146,6 +146,8 @@ def gridWorldSarsa(world, _start, _goal, alpha=0.1, gamma=1):
 		ep += 1
 
 	plt.plot(step_ep_list)
+	plt.xlabel("Number of steps taken")
+	plt.ylabel("Number of episodes")
 	plt.show()
 
 
