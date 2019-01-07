@@ -1,6 +1,6 @@
 ## Reinforcement Learning Windup
 
-This repo store my getting started with Reinforcement Learning (RL) code. These code are my implementation of the algorithms presented in the RL course by David Silver (https://www.youtube.com/watch?v=2pWv7GOvuf0&t=0s&list=PL7-jPKtc4r78-wCZcQn5IqyuWhBZ8fOxT&index=2)
+This repo store my getting started with Reinforcement Learning (RL) code. These code are my implementation of the algorithms presented in the RL course by David Silver (http://www0.cs.ucl.ac.uk/staff/d.silver/web/Teaching.html)
 
 [//]: # (Image References)
 
@@ -8,7 +8,7 @@ This repo store my getting started with Reinforcement Learning (RL) code. These 
 [image2]: ./misc/windy_grid_world_sarsa_traj.png
 [image3]: ./misc/windy_grid_world_q_learning.png
 [image4]: ./misc/windy_grid_world_q_learning_traj.png
-[image5]: ./misc/windy_grid_world.png
+[image5]: ./misc/windy_gird_world.png
 
 
 ### Windy Grid World
