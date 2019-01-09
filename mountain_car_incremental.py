@@ -8,8 +8,6 @@ import pylab as pl
 
 
 np.random.seed(4)
-# plt.ion()
-# plt.clf()
 
 
 def generateCircle(centroid, r, num=50):
@@ -23,47 +21,149 @@ def generateCircle(centroid, r, num=50):
 	return points_mat
 
 
-def obs2FeaturesVector(observation, centroids_mat, r, num_features):
+action_space_len = 3
+env = gym.envs.make("MountainCar-v0")
+obs_high = env.observation_space.high
+obs_low = env.observation_space.low
+receptive_field = 0.1
+print("Obs high: ", obs_high)
+print("Obs low: ", obs_low)
+
+num_obs_sample = 20  # number of observation sampled on each axis of the observation space
+num_features = num_obs_sample**2  # number of features (i.e. len of features vector)
+
+# initialize circles centroid
+# centroids_mat = np.zeros((num_obs_sample, 2))  # raw version
+# for i in range(2):
+# 	# centroids_mat[:, i] = np.linspace(obs_low[i], obs_high[i], num=num_obs_sample)
+# 	centroids_mat[:, i] = np.random.rand(num_obs_sample) * (obs_high[i] - obs_low[i]) + obs_low[i]
+
+# centroids_xx, centroids_yy = np.meshgrid(centroids_mat[:, 0], centroids_mat[:, 1])
+
+# centroids_xx[i, j] is paired with centroids_yy[i, j] to create 1 centroid
+centroids_list = []
+for i in range(num_obs_sample):
+	for j in range(num_obs_sample):
+		x = np.random.rand() * (obs_high[0] - obs_low[0]) + obs_low[0]
+		y = np.random.rand() * (obs_high[1] - obs_low[1]) + obs_low[1]
+		centroids_list.append((x, y))
+		# centroids_list.append((centroids_xx[i, j], centroids_yy[i, j])) 
+
+
+# observation = (np.random.rand() * (obs_high[0] - obs_low[0]) + obs_low[0],
+# 				 np.random.rand() * (obs_high[1] - obs_low[1]) + obs_low[1])
+# feature_vect = obs2FeaturesVector(observation, centroids_list, receptive_field, num_features)
+# print("feature_vect: ", feature_vect)
+
+# plt.figure()
+# plt.plot([observation[0]], [observation[1]], marker='*', markersize=8)
+# for i in range(num_features):
+# 	if feature_vect[i] > -1:
+# 		centroid = centroids_list[i]
+# 		points_mat = generateCircle(centroid, receptive_field)
+# 		plt.plot(points_mat[:, 0], points_mat[:, 1])
+
+# plt.xlim(obs_low[0], obs_high[0])
+# plt.ylim(obs_low[1], obs_high[1])
+# plt.show()
+
+
+def greedyAct(action_value_list):
+	return np.argmax(action_value_list)
+
+
+def epsilonGreedy(i_episode, action_value_list):
+	epsilon = 1. / i_episode
+	m = len(action_value_list)
+	greedy_act = greedyAct(action_value_list)
+	p = []  # probability of being chosen associated with each action
+	for act in range(m):
+		if act == greedy_act:
+			p.append((epsilon * 1. / m) + 1 - epsilon)
+		else:
+			p.append(epsilon * 1. / m)
+	choice = np.random.choice(range(action_space_len), size=1, p=p)
+	return choice[0], p
+
+
+def calActionValue(features_vect, action_value_weights):
+	action_value_list = []
+	for act in action_value_weights.keys():
+		action_value_list.append(np.sum(features_vect * action_value_weights[act]))
+	return action_value_list
+
+
+def obs2FeaturesVector(observation, centroids_list=centroids_list, r=receptive_field, num_features=num_features):
 	feat_vect = np.zeros(num_features)
-	for i in range(num_features):
-		centroid = centroids_mat[i, :]
+	for centroid in centroids_list:
 		dist = np.sqrt((observation[0] - centroid[0])**2 + (observation[1] - centroid[1])**2)
 		if dist < r:
 			feat_vect[i] = 1
 	return feat_vect
 
 
-action_space_len = 3
-env = gym.envs.make("MountainCar-v0")
-obs_high = env.observation_space.high
-obs_low = env.observation_space.low
-receptive_field = 0.05
-print("Obs high: ", obs_high)
-print("Obs low: ", obs_low)
+def osbervation2Action(observation):
+	# build features vector
+	features_vect = obs2FeaturesVector(observation)
+	# calculate action value for this observation
+	action_value_list = calActionValue(features_vect, action_value_weights)
+	return epsilonGreedy(i_episode, action_value_list)
 
-num_features = 50  # number of features (i.e. len of features vector)
-# initialize circles centroid
-centroids_mat = np.random.rand(num_features, 2)
-for i in range(2):
-	centroids_mat[:, i] = centroids_mat[:, i] * (obs_high[i] - obs_low[i]) + obs_low[i]
+#=====================================================#
 
-observation = (np.random.rand() * (obs_high[0] - obs_low[0]) + obs_low[0],
-				 np.random.rand() * (obs_high[1] - obs_low[1]) + obs_low[1])
-feature_vect = obs2FeaturesVector(observation, centroids_mat, receptive_field, num_features)
-print("feature_vect: ", feature_vect)
+# Initialize Q(s, a)
+action_value_weights = {}
+for act in range(action_space_len):
+	action_value_weights[act] = np.zeros(num_features)
 
-plt.figure()
-plt.plot([observation[0]], [observation[1]], marker='*', markersize=8)
-for i in range(num_features):
-	if feature_vect[i] > 0:
-		centroid = centroids_mat[i, :]
-		points_mat = generateCircle(centroid, receptive_field)
-		plt.plot(points_mat[:, 0], points_mat[:, 1])
 
-plt.xlim(obs_low[0], obs_high[0])
-plt.ylim(obs_low[1], obs_high[1])
+max_episode = 200
+env._max_episode_steps = 10000
+steps_per_episode = []
+alpha = 0.5/8.
+gamma = 0.9
+for i_episode in range(1, max_episode + 1):
+	observation = env.reset()
+	action, p = osbervation2Action(observation)
+	done = False
+	step = 0
+	while not done:
+		# env.render()
+		# calculate Q(S, A)
+		features_vect = obs2FeaturesVector(observation)
+		q_S_A = np.sum(action_value_weights[action] * features_vect)
+		# take A, observe R & Sprime
+		observation_prime, reward, done, info = env.step(action)
+		if observation[0] >= 0.1:
+			reward = 1.0
+		else:
+			reward = -1.0
+		if reward >= 0:
+			print("[Episode %d] get positive reward !!!" % i_episode)
+		if done:
+			action_value_weights[action] += alpha * (reward - q_S_A) * features_vect
+			print("[Episode %d] position: %f\t reward: %f" %(i_episode, observation[0], reward))
+			break
+		# choose new action
+		action_prime, p = osbervation2Action(observation_prime)
+		# print("[Episode %d] action_prime: %d" % (i_episode, action_prime))
+		# Update Q
+		q_Sprime_Aprime = np.sum(action_value_weights[action_prime] * obs2FeaturesVector(observation_prime))
+		# if step % 500 == 0:
+			# print("[Episode %d] q_S_A = %f\tq_Sprime_Aprime = %f\tr = %f"  %(i_episode, q_S_A, q_Sprime_Aprime, reward))
+		target = reward + gamma * q_Sprime_Aprime
+		action_value_weights[action] += alpha * (target - q_S_A) * features_vect
+		# Move on to new state
+		observation = observation_prime
+		action = action_prime
+		step += 1
+
+	steps_per_episode.append(step)
+	print("[Episode %d] finished after %d step." % (i_episode, step))
+
+plt.figure(1)
+plt.plot(steps_per_episode)
 plt.show()
-
 
 '''
 # Junk !!!
