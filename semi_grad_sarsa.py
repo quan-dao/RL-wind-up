@@ -114,21 +114,33 @@ num_features = 4 * n_components
 
 gamma = 0.99
 alpha = 0.001
+
 epsilon_start = 0.9  # those are the values for epsilon decay
 epsilon_stop = 0.01
 epsilon_decay_step = 10
-max_episode = 50
 
+max_episode = 50
+episode_switch = 10  # after 10 episode, the roles of 2 set of weights are switch
 steps_per_episode = []
 epsilon = epsilon_start
 
 memory = ReplayMemory()  # init memory for experience replay
 
-weights = {}
+# init 2 set of weights to serve fixed Q-target
+weights_1 = {}
 for act in range(env.action_space.n):
-	weights[act] = np.zeros(num_features)
+	weights_1[act] = np.zeros(num_features)
+weights_list = [weights_1, weights_1]
 
+flag_froze_1 = True
 for i_episode in range(1, max_episode + 1):
+	# Change role of 2 set of weights
+	if i_episode % episode_switch == 0:
+		flag_froze_1 = not flag_froze_1
+	# Get (free-to-update) weights & frozen weights
+	weights = weights_list[not flag_froze_1]
+	frozen_weights = weights_list[flag_froze_1]
+
 	epsilon = return_decayed_value(epsilon_start, epsilon_stop, i_episode, epsilon_decay_step)
 	# epsilon = 1./i_episode
 	
@@ -166,14 +178,14 @@ for i_episode in range(1, max_episode + 1):
 			_action_value_list = [calQ(_new_state, i, weights) for i in range(env.action_space.n)]
 			_new_action, prob = epsilonGreedy(_action_value_list, epsilon)
 			# Update action-value function
-			weights[_action] += alpha * (_reward + gamma * calQ(_new_state, _new_action, weights) - calQ(_state, _action, weights)) * _features
+			weights[_action] += alpha * (_reward + gamma * calQ(_new_state, _new_action, frozen_weights) - calQ(_state, _action, weights)) * _features
 
 		# Update action-value function based on new experience
 		# choose new action
 		action_value_list = [calQ(new_state, i, weights) for i in range(3)]
 		new_action, prob = epsilonGreedy(action_value_list, epsilon)
 		# Update 
-		weights[action] += alpha * (reward + gamma * calQ(new_state, new_action, weights) - calQ(state, action, weights)) * features
+		weights[action] += alpha * (reward + gamma * calQ(new_state, new_action, frozen_weights) - calQ(state, action, weights)) * features
 
 		# move on
 		state = new_state
