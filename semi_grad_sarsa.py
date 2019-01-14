@@ -14,12 +14,12 @@ env = gym.envs.make("MountainCar-v0")
 observation_examples = np.array([env.observation_space.sample() for x in range(10000)])
 scaler = sklearn.preprocessing.StandardScaler()
 scaler.fit(observation_examples)
-
+n_components = 25
 featurizer = sklearn.pipeline.FeatureUnion([
-        ("rbf1", RBFSampler(gamma=5.0, n_components=100)),
-        ("rbf2", RBFSampler(gamma=2.0, n_components=100)),
-        ("rbf3", RBFSampler(gamma=1.0, n_components=100)),
-        ("rbf4", RBFSampler(gamma=0.5, n_components=100))
+        ("rbf1", RBFSampler(gamma=5.0, n_components=n_components)),
+        ("rbf2", RBFSampler(gamma=2.0, n_components=n_components)),
+        ("rbf3", RBFSampler(gamma=1.0, n_components=n_components)),
+        ("rbf4", RBFSampler(gamma=0.5, n_components=n_components))
         ])
 featurizer.fit(scaler.transform(observation_examples))
 
@@ -89,28 +89,55 @@ def plotValueFunc(w, max_episode, epsilon):
 	plt.show()
 
 
+class ReplayMemory(object):
+	"""docstring for ReplayMemory"""
+	def __init__(self, memory_capacity=500):
+		self.data = []  # FIFO, IN at top, OUT at bottom
+		self.capacity = memory_capacity
+
+	def sample(self, num_sample=5):
+		return [self.data[i] for i in np.random.randint(0, high=len(self.data), size=num_sample)]
+
+	def add(self, state, action, reward, new_state):
+		if len(self.data) == self.capacity:
+			self.data.pop()
+		self.data.insert(0, (state, action, reward, new_state))
+
+
+
 env._max_episode_steps = 2000
 obs_high = env.observation_space.high
 obs_low = env.observation_space.low
 
 
-num_features = 400
+num_features = 4 * n_components
 
 gamma = 0.99
 alpha = 0.001
+
 epsilon_start = 0.9  # those are the values for epsilon decay
 epsilon_stop = 0.01
 epsilon_decay_step = 10
-max_episode = 200
 
+max_episode = 50
+episode_switch = 10  # after 10 episode, the roles of 2 set of weights are switch
 steps_per_episode = []
 epsilon = epsilon_start
 
+memory = ReplayMemory()  # init memory for experience replay
+
+# init 2 set of weights to serve fixed Q-target
 weights = {}
 for act in range(env.action_space.n):
 	weights[act] = np.zeros(num_features)
+weights_target = weights
 
+flag_froze_1 = True
 for i_episode in range(1, max_episode + 1):
+	# Change role of 2 set of weights
+	if i_episode % episode_switch == 0:
+		weights_target = weights
+
 	epsilon = return_decayed_value(epsilon_start, epsilon_stop, i_episode, epsilon_decay_step)
 	# epsilon = 1./i_episode
 	
@@ -125,6 +152,9 @@ for i_episode in range(1, max_episode + 1):
 
 		new_state, reward, done, _info = env.step(action)
 
+		# update memory
+		memory.add(state, action, reward, new_state)
+
 		if new_state[0] > 0.45:
 			done = True
 			reward = 1.0
@@ -133,10 +163,19 @@ for i_episode in range(1, max_episode + 1):
 			weights[action] += alpha * (reward - calQ(state, action, weights)) * features
 			print("Episode %d finishes in %d steps." % (i_episode, step))
 			break
-		# choose new action
-		action_value_list = [calQ(new_state, i, weights) for i in range(3)]
-		new_action, prob = epsilonGreedy(action_value_list, epsilon)
-		weights[action] += alpha * (reward + gamma * calQ(new_state, new_action, weights) - calQ(state, action, weights)) * features
+		
+		# Experience replay
+		for exp in memory.sample():
+			_state = exp[0]
+			_action = exp[1]
+			_reward = exp[2]
+			_new_state = exp[3]
+			_features = createFeatures(_state)
+			# choose new action
+			_action_value_list = [calQ(_new_state, i, weights) for i in range(env.action_space.n)]
+			_new_action, prob = epsilonGreedy(_action_value_list, epsilon)
+			# Update action-value function
+			weights[_action] += alpha * (_reward + gamma * calQ(_new_state, _new_action, weights_target) - calQ(_state, _action, weights)) * _features
 
 		# move on
 		state = new_state
@@ -146,8 +185,8 @@ for i_episode in range(1, max_episode + 1):
 	steps_per_episode.append(step)
 
 # store weights
-with open('mountain_car_weights.p', 'wb') as fp:
-    pickle.dump(weights, fp, protocol=pickle.HIGHEST_PROTOCOL)
+# with open('mountain_car_weights.p', 'wb') as fp:
+    # pickle.dump(weights, fp, protocol=pickle.HIGHEST_PROTOCOL)
 
 plt.figure(1)
 plt.plot(steps_per_episode)
